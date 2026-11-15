@@ -5,7 +5,17 @@ OGSMM is a dark, responsive starter UI for a manual-order social marketing panel
 ## What is currently in the repository
 - `index.html`: responsive dashboard, sample service catalogue, demo order form and order history.
 - `supabase-schema.sql`: starter Supabase schema for profiles, services and manual order management.
+- `.github/workflows/deploy-pages.yml`: GitHub Actions workflow that deploys the static site to GitHub Pages when `main` is updated.
 - Demo orders persist in the same browser using localStorage. They are not stored in a database and will not appear on another device/browser.
+
+## Publish the preview with GitHub Pages
+1. Open the repository **Settings** on GitHub.
+2. Open **Pages** in the left sidebar.
+3. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+4. Open the **Actions** tab and check the **Deploy OGSMM to GitHub Pages** workflow. If it has not started, run it with **Run workflow**.
+5. After the run succeeds, GitHub will show the published site URL in the workflow deployment/environment.
+
+This publishes the current static demo only; it does not make the panel production-ready.
 
 ## Important current limitations
 - No live Supabase connection or real user authentication is wired into the page.
