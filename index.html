@@ -26,7 +26,7 @@
 <section id="admin" class="page hidden">
   <div class="layout">
     <div class="card">
-      <div class="sectionhead"><h2>Add a service</h2><span class="pill">ADMIN ONLY</span></div><div class="notice" style="margin:0 0 12px">For interface testing only. Demo services are visibly labelled and do not deliver followers, likes, views, or story views.</div><button class="btn secondary" id="addDemoCatalogue" type="button" style="margin-bottom:12px">＋ Add 4 demo services</button>
+      <div class="sectionhead"><h2>Add a service</h2><span class="pill">ADMIN ONLY</span></div><div class="notice" style="margin:0 0 12px">For interface testing only. Demo services are visibly labelled and do not deliver followers, likes, views, or story views.</div><button class="btn secondary" id="addDemoCatalogue" type="button" style="margin-bottom:12px">Disable demo services</button>
       <form id="adminServiceForm">
         <div class="field"><label for="adminPlatform">Platform</label><input id="adminPlatform" required placeholder="Instagram"></div>
         <div class="field"><label for="adminServiceName">Service name</label><input id="adminServiceName" required placeholder="Instagram post likes"></div>
@@ -177,6 +177,8 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
   async function loadAdmin() {
     try {
       await requireAdmin();
+      const { error: disableError } = await db.from("services").update({active:false}).like("name","DEMO ONLY%");
+      if (disableError) throw disableError;
       const [servicesResult, ordersResult] = await Promise.all([
         db.from("services").select("id,platform,name,rate_per_1000,min_quantity,max_quantity,active").order("created_at", {ascending:false}),
         db.from("orders").select("id,user_id,service_id,quantity,charge,status,created_at,services(name),profiles(email)").order("created_at", {ascending:false}).limit(50)
@@ -217,23 +219,12 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
   document.getElementById("addDemoCatalogue").addEventListener("click", async () => {
     try {
       await requireAdmin();
-      const demos = [
-        {platform:"Instagram",name:"DEMO ONLY — Followers (no delivery)",rate_per_1000:1,min_quantity:10,max_quantity:100000,active:true},
-        {platform:"Instagram",name:"DEMO ONLY — Post/Reel Likes (no delivery)",rate_per_1000:1,min_quantity:10,max_quantity:100000,active:true},
-        {platform:"Instagram",name:"DEMO ONLY — Reel/Video Views (no delivery)",rate_per_1000:1,min_quantity:10,max_quantity:100000,active:true},
-        {platform:"Instagram",name:"DEMO ONLY — Story Views (no delivery)",rate_per_1000:1,min_quantity:10,max_quantity:100000,active:true}
-      ];
-      const { data: existing, error: readError } = await db.from("services").select("name").eq("platform","Instagram");
-      if (readError) throw readError;
-      const existingNames = new Set((existing || []).map(s => s.name));
-      const toAdd = demos.filter(s => !existingNames.has(s.name));
-      if (!toAdd.length) { toast("Demo catalogue already exists."); return; }
-      const { error } = await db.from("services").insert(toAdd);
+      const { error } = await db.from("services").update({active:false}).like("name","DEMO ONLY%");
       if (error) throw error;
-      toast("4 demo service types added (no delivery).");
+      toast("All DEMO ONLY services are now disabled.");
       await loadAdmin();
       await loadActiveServices();
-    } catch (error) { toast(error.message || "Could not add demo services."); }
+    } catch (error) { toast(error.message || "Could not disable demo services."); }
   });
   document.getElementById("refreshAdminOrders").addEventListener("click", loadAdmin);
   document.getElementById("refreshAdminServices").addEventListener("click", loadAdmin);
