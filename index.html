@@ -11,7 +11,7 @@
 </style></head>
 <body><div class="shell">
 <aside class="side"><div class="brand"><div class="mark">OG</div><div>OGSMM<small>SOCIAL GROWTH PANEL</small></div></div>
-<div class="navlabel">WORKSPACE</div><nav class="nav"><button class="active" data-page="dashboard">◫ &nbsp; Dashboard</button><button data-page="neworder">＋ &nbsp; New order</button><button data-page="services">▤ &nbsp; Services</button><button data-page="orders">◷ &nbsp; Order history</button></nav>
+<div class="navlabel">WORKSPACE</div><nav class="nav"><button class="active" data-page="dashboard">◫ &nbsp; Dashboard</button><button data-page="neworder">＋ &nbsp; New order</button><button data-page="services">▤ &nbsp; Services</button><button data-page="orders">◷ &nbsp; Order history</button><button data-page="admin" id="adminNav" class="hidden">⚙ &nbsp; Admin</button></nav>
 <div class="sidefoot">OGSMM · Panel preview<br>Built for your brand.</div></aside>
 <main class="main"><header class="top"><div><div class="eyebrow">CONTROL CENTER</div><div class="h1" id="pageTitle">Dashboard</div><div class="sub">Manage your social growth orders in one place.</div></div><button class="user" id="accountButton" type="button">◉ &nbsp; Sign in</button></header>
 <section id="dashboard" class="page">
@@ -23,6 +23,28 @@
 <div class="card"><h2 style="font-size:16px;margin-top:0">Order guidelines</h2><p class="sub">Use a public URL you own or are authorized to promote. Never submit passwords, login codes, or private account details.</p><div class="service"><div><strong>Minimum quantity</strong><small>10 units (sample)</small></div></div><div class="service"><div><strong>Maximum quantity</strong><small>100,000 units (sample)</small></div></div><div class="service"><div><strong>Pricing</strong><small>Demo estimate only</small></div></div></div></div></section>
 <section id="services" class="page hidden"><div class="card"><div class="sectionhead"><h2>Service catalogue</h2><span class="pill">SAMPLE RATES</span></div><div id="serviceList"></div><div class="notice">All services and rates shown are placeholders for layout testing. Connect vetted, platform-compliant providers before accepting real orders.</div></div></section>
 <section id="orders" class="page hidden"><div class="card"><div class="sectionhead"><h2>Order history</h2><span class="pill" id="orderCount">0 ORDERS</span></div><div class="tablewrap"><table class="orders"><thead><tr><th>ID</th><th>Platform</th><th>Service</th><th>Quantity</th><th>Estimate</th><th>Status</th></tr></thead><tbody id="allRows"><tr><td colspan="6" class="empty">Your demo orders will appear here.</td></tr></tbody></table></div></div></section>
+<section id="admin" class="page hidden">
+  <div class="layout">
+    <div class="card">
+      <div class="sectionhead"><h2>Add a service</h2><span class="pill">ADMIN ONLY</span></div>
+      <form id="adminServiceForm">
+        <div class="field"><label for="adminPlatform">Platform</label><input id="adminPlatform" required placeholder="Instagram"></div>
+        <div class="field"><label for="adminServiceName">Service name</label><input id="adminServiceName" required placeholder="Instagram post likes"></div>
+        <div class="field"><label for="adminRate">Rate per 1,000 (₹)</label><input id="adminRate" type="number" min="0" step="0.01" required></div>
+        <div class="field"><label for="adminMin">Minimum quantity</label><input id="adminMin" type="number" min="1" value="10" required></div>
+        <div class="field"><label for="adminMax">Maximum quantity</label><input id="adminMax" type="number" min="1" value="100000" required></div>
+        <label style="display:flex;gap:9px;align-items:center;color:#aab8cd;font-size:12px"><input id="adminActive" type="checkbox"> Activate service (only after confirming compliant fulfilment)</label>
+        <button class="btn" type="submit" style="margin-top:14px">Save service</button>
+      </form>
+      <div class="notice">Keep services inactive until you have verified a legitimate, platform-permitted fulfilment method. No provider API or payments are connected yet.</div>
+    </div>
+    <div class="card">
+      <div class="sectionhead"><h2>All customer orders</h2><button class="btn secondary" id="refreshAdminOrders" type="button">Refresh</button></div>
+      <div class="tablewrap"><table class="orders"><thead><tr><th>Created</th><th>Customer</th><th>Service</th><th>Qty</th><th>Charge</th><th>Status</th></tr></thead><tbody id="adminOrderRows"><tr><td colspan="6" class="empty">Sign in as admin to load orders.</td></tr></tbody></table></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Services in database</h2><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div><div id="adminServiceRows"></div></div>
+</section>
 </main></div>
 <div id="authOverlay" style="display:none;position:fixed;inset:0;background:#050914dd;z-index:20;place-items:center;padding:18px">
   <div class="card" style="width:min(420px,100%);position:relative">
@@ -40,7 +62,7 @@
 <script>
 const rates={"Instagram followers":85,"Instagram likes":18,"Instagram reel views":12,"YouTube views":95,"YouTube subscribers":240,"Telegram members":110};
 const money=n=>"₹"+Number(n).toFixed(2);let orders=JSON.parse(localStorage.getItem('ogsmm_demo_orders')||'[]');
-function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(p).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));document.getElementById('pageTitle').textContent=({dashboard:'Dashboard',neworder:'New order',services:'Services',orders:'Order history'})[p];}
+function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(p).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));document.getElementById('pageTitle').textContent=({dashboard:'Dashboard',neworder:'New order',services:'Services',orders:'Order history',admin:'Admin console'})[p];if(p==='admin'&&window.ogsmmLoadAdmin)window.ogsmmLoadAdmin();}
 document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
 function estimate(){let s=document.getElementById('service').value.replace(' — sample','');let q=Number(document.getElementById('quantity').value)||0;document.getElementById('estimate').textContent=money((rates[s]||0)*q/1000)}
 document.getElementById('service').addEventListener('change',estimate);document.getElementById('quantity').addEventListener('input',estimate);
@@ -60,12 +82,15 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
     return;
   }
   const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  window.ogsmmDb = db;
   const overlay = document.getElementById("authOverlay");
   const accountButton = document.getElementById("accountButton");
   const authForm = document.getElementById("authForm");
   const authMessage = document.getElementById("authMessage");
   const authSubmit = document.getElementById("authSubmit");
+  const adminNav = document.getElementById("adminNav");
   let mode = "signin";
+  let currentRole = "customer";
   function showAuth(nextMode) {
     mode = nextMode || "signin";
     authSubmit.textContent = mode === "signup" ? "Create account" : "Sign in";
@@ -86,17 +111,11 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
     const password = document.getElementById("authPassword").value;
     authMessage.textContent = "Please wait…";
     authSubmit.disabled = true;
-    let result;
-    if (mode === "signup") {
-      result = await db.auth.signUp({ email, password });
-    } else {
-      result = await db.auth.signInWithPassword({ email, password });
-    }
+    const result = mode === "signup"
+      ? await db.auth.signUp({ email, password })
+      : await db.auth.signInWithPassword({ email, password });
     authSubmit.disabled = false;
-    if (result.error) {
-      authMessage.textContent = result.error.message;
-      return;
-    }
+    if (result.error) { authMessage.textContent = result.error.message; return; }
     if (mode === "signup" && !result.data.session) {
       authMessage.textContent = "Account created. Check your email to confirm, then sign in.";
       return;
@@ -108,9 +127,66 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
   });
   async function refreshAccount() {
     const { data: { session } } = await db.auth.getSession();
-    accountButton.textContent = session ? "◉  " + (session.user.email || "My account") + " · Sign out" : "◉  Sign in";
+    currentRole = "customer";
+    if (session) {
+      const { data: profile, error } = await db.from("profiles").select("role").eq("id", session.user.id).maybeSingle();
+      if (!error && profile) currentRole = profile.role;
+      accountButton.textContent = "◉  " + (session.user.email || "My account") + (currentRole === "admin" ? " · ADMIN" : " · Sign out");
+    } else {
+      accountButton.textContent = "◉  Sign in";
+    }
+    adminNav.classList.toggle("hidden", currentRole !== "admin");
+    if (currentRole === "admin") toast("Admin access verified.");
   }
-  db.auth.onAuthStateChange(() => refreshAccount());
+  async function requireAdmin() {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) throw new Error("Please sign in first.");
+    const { data: profile, error } = await db.from("profiles").select("role").eq("id", session.user.id).single();
+    if (error) throw error;
+    if (profile.role !== "admin") throw new Error("This account does not have admin access yet.");
+  }
+  async function loadAdmin() {
+    try {
+      await requireAdmin();
+      const [servicesResult, ordersResult] = await Promise.all([
+        db.from("services").select("id,platform,name,rate_per_1000,min_quantity,max_quantity,active").order("created_at", {ascending:false}),
+        db.from("orders").select("id,user_id,service_id,quantity,charge,status,created_at,services(name),profiles(email)").order("created_at", {ascending:false}).limit(50)
+      ]);
+      if (servicesResult.error) throw servicesResult.error;
+      if (ordersResult.error) throw ordersResult.error;
+      document.getElementById("adminServiceRows").innerHTML = servicesResult.data.map(s =>
+        '<div class="service"><div><strong>'+esc(s.platform+' · '+s.name)+'</strong><small>₹'+Number(s.rate_per_1000).toFixed(2)+'/1K · '+s.min_quantity+'–'+s.max_quantity+' · '+(s.active?'Active':'Inactive')+'</small></div></div>'
+      ).join("") || '<div class="empty">No services found.</div>';
+      document.getElementById("adminOrderRows").innerHTML = ordersResult.data.map(o =>
+        '<tr><td>'+new Date(o.created_at).toLocaleDateString()+'</td><td>'+esc(o.profiles?.email||'Customer')+'</td><td>'+esc(o.services?.name||'Service')+'</td><td>'+o.quantity+'</td><td>₹'+Number(o.charge).toFixed(2)+'</td><td>'+esc(o.status)+'</td></tr>'
+      ).join("") || '<tr><td colspan="6" class="empty">No customer orders yet.</td></tr>';
+    } catch (error) { toast(error.message || "Could not load admin data."); }
+  }
+  window.ogsmmLoadAdmin = loadAdmin;
+  document.getElementById("adminServiceForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    try {
+      await requireAdmin();
+      const min = Number(document.getElementById("adminMin").value);
+      const max = Number(document.getElementById("adminMax").value);
+      if (max < min) throw new Error("Maximum quantity must be at least the minimum.");
+      const { error } = await db.from("services").insert({
+        platform: document.getElementById("adminPlatform").value.trim(),
+        name: document.getElementById("adminServiceName").value.trim(),
+        rate_per_1000: Number(document.getElementById("adminRate").value),
+        min_quantity: min, max_quantity: max,
+        active: document.getElementById("adminActive").checked
+      });
+      if (error) throw error;
+      event.target.reset();
+      document.getElementById("adminMin").value = 10;
+      document.getElementById("adminMax").value = 100000;
+      toast("Service saved.");
+      await loadAdmin();
+    } catch (error) { toast(error.message || "Could not save service."); }
+  });
+  document.getElementById("refreshAdminOrders").addEventListener("click", loadAdmin);
+  document.getElementById("refreshAdminServices").addEventListener("click", loadAdmin);
+  db.auth.onAuthStateChange(() => { setTimeout(refreshAccount, 0); });
   refreshAccount();
-})();
-</script>\n</body></html>
+})();</script>\n</body></html>
