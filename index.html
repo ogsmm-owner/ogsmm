@@ -43,6 +43,12 @@
       <div class="tablewrap"><table class="orders"><thead><tr><th>Created</th><th>Customer</th><th>Service</th><th>Qty</th><th>Charge</th><th>Status</th></tr></thead><tbody id="adminOrderRows"><tr><td colspan="6" class="empty">Sign in as admin to load orders.</td></tr></tbody></table></div>
     </div>
   </div>
+  <div class="card" style="margin-top:16px">
+    <div class="sectionhead"><h2>Provider balance</h2><span class="pill">ADMIN ONLY</span></div>
+    <p class="sub">Checks the provider account balance securely through the OGSMM admin function.</p>
+    <div class="btnrow"><button class="btn" id="checkProviderBalance" type="button">Check live balance</button></div>
+    <div class="notice" id="providerBalanceResult" aria-live="polite">Not checked yet.</div>
+  </div>
   <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Services in database</h2><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div><div id="adminServiceRows"></div></div>
 </section>
 </main></div>
@@ -193,6 +199,28 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       ).join("") || '<tr><td colspan="6" class="empty">No customer orders yet.</td></tr>';
     } catch (error) { toast(error.message || "Could not load admin data."); }
   }
+  const balanceButton = document.getElementById("checkProviderBalance");
+  if (balanceButton) balanceButton.addEventListener("click", async () => {
+    const output = document.getElementById("providerBalanceResult");
+    balanceButton.disabled = true;
+    balanceButton.textContent = "Checking…";
+    output.textContent = "Contacting provider securely…";
+    try {
+      const { data, error } = await db.functions.invoke("smm-provider", { body: {} });
+      if (error) throw error;
+      if (data && typeof data.balance !== "undefined") {
+        const currency = data.currency || "";
+        output.textContent = "Provider balance: " + currency + " " + data.balance;
+      } else {
+        output.textContent = "Provider response: " + JSON.stringify(data);
+      }
+    } catch (error) {
+      output.textContent = "Balance check failed: " + (error.message || "Unknown error");
+    } finally {
+      balanceButton.disabled = false;
+      balanceButton.textContent = "Check live balance";
+    }
+  });
   window.ogsmmLoadAdmin = loadAdmin;
   document.getElementById("adminServiceForm").addEventListener("submit", async event => {
     event.preventDefault();
