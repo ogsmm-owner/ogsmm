@@ -82,15 +82,28 @@ alter table public.profiles enable row level security;
 alter table public.services enable row level security;
 alter table public.orders enable row level security;
 
+-- SECURITY DEFINER avoids recursive RLS lookups when checking the admin role.
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select exists (
+    select 1 from public.profiles
+    where id = (select auth.uid()) and role = 'admin'
+  );
+$;
+
+
 drop policy if exists "Users read own profile" on public.profiles;
 create policy "Users read own profile" on public.profiles for select to authenticated
-using (id = (select auth.uid()) or exists (
-  select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'
-));
+using (id = (select auth.uid()) or public.is_admin());
 
 drop policy if exists "Admins update profiles" on public.profiles;
 create policy "Admins update profiles" on public.profiles for update to authenticated
-using (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'))
+using (public.is_admin())
 with check (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'));
 
 drop policy if exists "Anyone reads active services" on public.services;
