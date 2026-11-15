@@ -13,7 +13,7 @@
 <aside class="side"><div class="brand"><div class="mark">OG</div><div>OGSMM<small>SOCIAL GROWTH PANEL</small></div></div>
 <div class="navlabel">WORKSPACE</div><nav class="nav"><button class="active" data-page="dashboard">◫ &nbsp; Dashboard</button><button data-page="neworder">＋ &nbsp; New order</button><button data-page="services">▤ &nbsp; Services</button><button data-page="orders">◷ &nbsp; Order history</button></nav>
 <div class="sidefoot">OGSMM · Panel preview<br>Built for your brand.</div></aside>
-<main class="main"><header class="top"><div><div class="eyebrow">CONTROL CENTER</div><div class="h1" id="pageTitle">Dashboard</div><div class="sub">Manage your social growth orders in one place.</div></div><div class="user">◉ &nbsp; Demo account</div></header>
+<main class="main"><header class="top"><div><div class="eyebrow">CONTROL CENTER</div><div class="h1" id="pageTitle">Dashboard</div><div class="sub">Manage your social growth orders in one place.</div></div><button class="user" id="accountButton" type="button">◉ &nbsp; Sign in</button></header>
 <section id="dashboard" class="page">
 <div class="stats"><div class="card"><div class="statname">Available balance</div><div class="statval">₹0.00</div><div class="statnote">Demo balance · not real funds</div></div><div class="card"><div class="statname">Total orders</div><div class="statval" id="totalOrders">0</div><div class="statnote">Orders created in this preview</div></div><div class="card"><div class="statname">In progress</div><div class="statval" id="progressOrders">0</div><div class="statnote">Demo order status</div></div><div class="card"><div class="statname">Services</div><div class="statval">6</div><div class="statnote">Sample service catalogue</div></div></div>
 <div class="layout"><div class="card"><div class="sectionhead"><h2>Recent orders</h2><span class="pill">LATEST</span></div><div class="tablewrap"><table class="orders"><thead><tr><th>Order</th><th>Service</th><th>Link</th><th>Status</th></tr></thead><tbody id="recentRows"><tr><td colspan="4" class="empty">No orders yet. Create your first demo order.</td></tr></tbody></table></div></div>
@@ -23,7 +23,20 @@
 <div class="card"><h2 style="font-size:16px;margin-top:0">Order guidelines</h2><p class="sub">Use a public URL you own or are authorized to promote. Never submit passwords, login codes, or private account details.</p><div class="service"><div><strong>Minimum quantity</strong><small>10 units (sample)</small></div></div><div class="service"><div><strong>Maximum quantity</strong><small>100,000 units (sample)</small></div></div><div class="service"><div><strong>Pricing</strong><small>Demo estimate only</small></div></div></div></div></section>
 <section id="services" class="page hidden"><div class="card"><div class="sectionhead"><h2>Service catalogue</h2><span class="pill">SAMPLE RATES</span></div><div id="serviceList"></div><div class="notice">All services and rates shown are placeholders for layout testing. Connect vetted, platform-compliant providers before accepting real orders.</div></div></section>
 <section id="orders" class="page hidden"><div class="card"><div class="sectionhead"><h2>Order history</h2><span class="pill" id="orderCount">0 ORDERS</span></div><div class="tablewrap"><table class="orders"><thead><tr><th>ID</th><th>Platform</th><th>Service</th><th>Quantity</th><th>Estimate</th><th>Status</th></tr></thead><tbody id="allRows"><tr><td colspan="6" class="empty">Your demo orders will appear here.</td></tr></tbody></table></div></div></section>
-</main></div><div class="toast" id="toast"></div>
+</main></div>
+<div id="authOverlay" style="display:none;position:fixed;inset:0;background:#050914dd;z-index:20;place-items:center;padding:18px">
+  <div class="card" style="width:min(420px,100%);position:relative">
+    <div class="sectionhead"><h2>OGSMM account</h2><button class="btn secondary" type="button" id="closeAuth">Close</button></div>
+    <p class="sub">Sign in or create your customer account.</p>
+    <form id="authForm">
+      <div class="field"><label for="authEmail">Email</label><input id="authEmail" type="email" autocomplete="email" required></div>
+      <div class="field"><label for="authPassword">Password</label><input id="authPassword" type="password" autocomplete="current-password" minlength="6" required></div>
+      <div class="btnrow"><button class="btn" type="submit" id="authSubmit">Sign in</button><button class="btn secondary" type="button" id="signupBtn">Create account</button></div>
+    </form>
+    <div class="notice" id="authMessage">Use your email and password. Email confirmation may be required.</div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
 <script>
 const rates={"Instagram followers":85,"Instagram likes":18,"Instagram reel views":12,"YouTube views":95,"YouTube subscribers":240,"Telegram members":110};
 const money=n=>"₹"+Number(n).toFixed(2);let orders=JSON.parse(localStorage.getItem('ogsmm_demo_orders')||'[]');
@@ -36,4 +49,68 @@ function render(){document.getElementById('totalOrders').textContent=orders.leng
 function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function toast(s){let t=document.getElementById('toast');t.textContent=s;t.style.display='block';setTimeout(()=>t.style.display='none',3200)}
 document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r])=>'<div class="service"><div><strong>'+s+'</strong><small>Sample rate per 1,000 · placeholder</small></div><div class="price">'+money(r)+'/1K</div></div>').join('');estimate();
-</script></body></html>
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(() => {
+  const SUPABASE_URL = "https://akywlwksxiynpsnicvug.supabase.co";
+  const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_iyy2im01IZXVVlD-1br6jg_VuloNrHW";
+  if (!window.supabase || !window.supabase.createClient) {
+    console.error("Supabase library failed to load");
+    return;
+  }
+  const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  const overlay = document.getElementById("authOverlay");
+  const accountButton = document.getElementById("accountButton");
+  const authForm = document.getElementById("authForm");
+  const authMessage = document.getElementById("authMessage");
+  const authSubmit = document.getElementById("authSubmit");
+  let mode = "signin";
+  function showAuth(nextMode) {
+    mode = nextMode || "signin";
+    authSubmit.textContent = mode === "signup" ? "Create account" : "Sign in";
+    overlay.style.display = "grid";
+    authMessage.textContent = "Use your email and password. Email confirmation may be required.";
+  }
+  document.getElementById("closeAuth").addEventListener("click", () => overlay.style.display = "none");
+  accountButton.addEventListener("click", async () => {
+    const { data: { session } } = await db.auth.getSession();
+    if (session) {
+      if (confirm("Sign out of OGSMM?")) await db.auth.signOut();
+    } else showAuth("signin");
+  });
+  document.getElementById("signupBtn").addEventListener("click", () => showAuth("signup"));
+  authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = document.getElementById("authEmail").value.trim();
+    const password = document.getElementById("authPassword").value;
+    authMessage.textContent = "Please wait…";
+    authSubmit.disabled = true;
+    let result;
+    if (mode === "signup") {
+      result = await db.auth.signUp({ email, password });
+    } else {
+      result = await db.auth.signInWithPassword({ email, password });
+    }
+    authSubmit.disabled = false;
+    if (result.error) {
+      authMessage.textContent = result.error.message;
+      return;
+    }
+    if (mode === "signup" && !result.data.session) {
+      authMessage.textContent = "Account created. Check your email to confirm, then sign in.";
+      return;
+    }
+    overlay.style.display = "none";
+    authForm.reset();
+    await refreshAccount();
+    toast(mode === "signup" ? "OGSMM account created." : "Welcome back to OGSMM.");
+  });
+  async function refreshAccount() {
+    const { data: { session } } = await db.auth.getSession();
+    accountButton.textContent = session ? "◉  " + (session.user.email || "My account") + " · Sign out" : "◉  Sign in";
+  }
+  db.auth.onAuthStateChange(() => refreshAccount());
+  refreshAccount();
+})();
+</script>\n</body></html>
