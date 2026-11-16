@@ -49,6 +49,13 @@
     <div class="btnrow"><button class="btn" id="checkProviderBalance" type="button">Check live balance</button></div>
     <div class="notice" id="providerBalanceResult" aria-live="polite">Not checked yet.</div>
   </div>
+  <div class="card" style="margin-top:16px">
+    <div class="sectionhead"><h2>Provider catalogue</h2><span class="pill">ADMIN REVIEW ONLY</span></div>
+    <p class="sub">Loads the provider's current service list for review. Nothing here is published to customers or enabled for ordering.</p>
+    <button class="btn" id="loadProviderCatalog" type="button">Load provider services</button>
+    <div class="notice" id="providerCatalogResult" aria-live="polite">Not loaded yet.</div>
+    <div class="tablewrap" style="margin-top:12px"><table class="orders"><thead><tr><th>ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Type</th></tr></thead><tbody id="providerCatalogRows"><tr><td colspan="6" class="empty">Admin-only review list.</td></tr></tbody></table></div>
+  </div>
   <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Services in database</h2><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div><div id="adminServiceRows"></div></div>
 </section>
 </main></div>
@@ -199,6 +206,27 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       ).join("") || '<tr><td colspan="6" class="empty">No customer orders yet.</td></tr>';
     } catch (error) { toast(error.message || "Could not load admin data."); }
   }
+  const catalogButton = document.getElementById("loadProviderCatalog");
+  if (catalogButton) catalogButton.addEventListener("click", async () => {
+    const status = document.getElementById("providerCatalogResult");
+    const rows = document.getElementById("providerCatalogRows");
+    catalogButton.disabled = true;
+    catalogButton.textContent = "Loading…";
+    status.textContent = "Fetching provider catalogue securely…";
+    try {
+      await requireAdmin();
+      const { data, error } = await db.functions.invoke("smm-provider", { body: { action: "services" } });
+      if (error) throw error;
+      if (!Array.isArray(data)) throw new Error(data?.error || "Unexpected provider response.");
+      rows.innerHTML = data.map(s => '<tr><td>'+esc(String(s.service ?? ""))+'</td><td>'+esc(String(s.name ?? ""))+'</td><td>'+esc(String(s.category ?? ""))+'</td><td>'+esc(String(s.rate ?? ""))+'</td><td>'+esc(String(s.min ?? ""))+'–'+esc(String(s.max ?? ""))+'</td><td>'+esc(String(s.type ?? ""))+'</td></tr>').join("") || '<tr><td colspan="6" class="empty">Provider returned no services.</td></tr>';
+      status.textContent = "Loaded " + data.length + " provider services. Admin review only — not available for customer orders.";
+    } catch (error) {
+      status.textContent = "Could not load provider services: " + (error.message || "Unknown error");
+    } finally {
+      catalogButton.disabled = false;
+      catalogButton.textContent = "Load provider services";
+    }
+  });
   const balanceButton = document.getElementById("checkProviderBalance");
   if (balanceButton) balanceButton.addEventListener("click", async () => {
     const output = document.getElementById("providerBalanceResult");
