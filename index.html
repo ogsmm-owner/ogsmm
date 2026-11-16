@@ -75,7 +75,7 @@
     <div class="notice" id="draftReviewNotice" aria-live="polite">Review status does not make any service available to customers.</div>
   </div>
 
-  <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Services in database</h2><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div><div id="adminServiceRows"></div></div>
+  <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Services in database</h2><div class="btnrow"><button class="btn" id="applyBulkMargin" type="button">Apply +₹5 margin (eligible services)</button><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div></div><p class="sub" id="bulkMarginStatus">Adds ₹5 once to each eligible non-engagement service. Does not publish services.</p><div id="adminServiceRows"></div></div>
 </section>
 </main></div>
 <div id="authOverlay" style="display:none;position:fixed;inset:0;background:#050914dd;z-index:20;place-items:center;padding:18px">
@@ -218,20 +218,51 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       const { error: disableError } = await db.from("services").update({active:false}).like("name","DEMO ONLY%");
       if (disableError) throw disableError;
       const [servicesResult, ordersResult] = await Promise.all([
-        db.from("services").select("id,platform,name,rate_per_1000,min_quantity,max_quantity,active").order("created_at", {ascending:false}),
+        db.from("services").select("id,platform,name,rate_per_1000,min_quantity,max_quantity,active,margin_applied").order("created_at", {ascending:false}),
         db.from("orders").select("id,user_id,service_id,quantity,charge,status,created_at,services(name),profiles(email)").order("created_at", {ascending:false}).limit(50)
       ]);
       if (servicesResult.error) throw servicesResult.error;
       if (ordersResult.error) throw ordersResult.error;
       document.getElementById("adminServiceRows").innerHTML = servicesResult.data.map(s => {
         const canPublish = isPermittedService(s.name);
-        return '<div class="service"><div><strong>'+esc(s.platform+' · '+s.name)+'</strong><small>₹'+Number(s.rate_per_1000).toFixed(2)+'/1K · '+s.min_quantity+'–'+s.max_quantity+' · '+(s.active?'Active':'Inactive')+'</small></div><div><button class="btn secondary" type="button" data-service-toggle="'+esc(s.id)+'" data-next-active="'+(!s.active)+'" '+(!canPublish && !s.active?'disabled title="Only approved non-engagement services can be activated"':'')+'>'+(s.active?'Unpublish':'Publish')+'</button></div></div>';
+        return '<div class="service"><div><strong>'+esc(s.platform+' · '+s.name)+'</strong><small>₹'+Number(s.rate_per_1000).toFixed(2)+'/1K · margin +₹'+Number(s.margin_applied||0).toFixed(2)+' · '+s.min_quantity+'–'+s.max_quantity+' · '+(s.active?'Active':'Inactive')+'</small></div><div><button class="btn secondary" type="button" data-service-toggle="'+esc(s.id)+'" data-next-active="'+(!s.active)+'" '+(!canPublish && !s.active?'disabled title="Only approved non-engagement services can be activated"':'')+'>'+(s.active?'Unpublish':'Publish')+'</button></div></div>';
       }).join("") || '<div class="empty">No services found.</div>';
       document.getElementById("adminOrderRows").innerHTML = ordersResult.data.map(o =>
         '<tr><td>'+new Date(o.created_at).toLocaleDateString()+'</td><td>'+esc(o.profiles?.email||'Customer')+'</td><td>'+esc(o.services?.name||'Service')+'</td><td>'+o.quantity+'</td><td>₹'+Number(o.charge).toFixed(2)+'</td><td>'+esc(o.status)+'</td></tr>'
       ).join("") || '<tr><td colspan="6" class="empty">No customer orders yet.</td></tr>';
     } catch (error) { toast(error.message || "Could not load admin data."); }
   }
+  const bulkMarginButton = document.getElementById("applyBulkMargin");
+  if (bulkMarginButton) bulkMarginButton.addEventListener("click", async () => {
+    const status = document.getElementById("bulkMarginStatus");
+    try {
+      await requireAdmin();
+      bulkMarginButton.disabled = true;
+      const { data, error } = await db.from("services").select("id,name,rate_per_1000,margin_applied").eq("margin_applied", 0);
+      if (error) throw error;
+      const eligible = (data || []).filter(s => isPermittedService(s.name) && s.rate_per_1000 != null && Number.isFinite(Number(s.rate_per_1000)));
+      if (!eligible.length) {
+        status.textContent = "No eligible genuine services found with margin not yet applied. No prices changed.";
+        return;
+      }
+      if (!confirm("Apply +₹5 once to " + eligible.length + " eligible genuine service(s)? This will not publish them.")) return;
+      let updated = 0;
+      for (const service of eligible) {
+        const { error: updateError } = await db.from("services").update({
+          rate_per_1000: Number(service.rate_per_1000) + 5,
+          margin_applied: 5
+        }).eq("id", service.id).eq("margin_applied", 0);
+        if (updateError) throw updateError;
+        updated++;
+      }
+      status.textContent = "₹5 margin applied to " + updated + " eligible service(s). Services remain in their current publish status.";
+      await loadAdmin();
+    } catch (error) {
+      status.textContent = "Could not apply margin: " + (error.message || "Unknown error");
+    } finally {
+      bulkMarginButton.disabled = false;
+    }
+  });
   const catalogButton = document.getElementById("loadProviderCatalog");
   if (catalogButton) catalogButton.addEventListener("click", async () => {
     const status = document.getElementById("providerCatalogResult");
