@@ -81,7 +81,14 @@
     <div class="notice" id="draftReviewNotice" aria-live="polite">Review status does not make any service available to customers.</div>
   </div>
 
-  <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Manage Services</h2><div class="btnrow"><button class="btn" id="applyBulkMargin" type="button">Apply +₹5 to eligible services</button><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div></div><p class="sub" id="bulkMarginStatus">Adds ₹5 once to each eligible non-engagement service. Does not publish services.</p><div id="adminServiceRows"></div></div>
+  <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Manage Services</h2><div class="btnrow"><button class="btn" id="applyBulkMargin" type="button">Apply +₹5 to eligible services</button><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div></div><p class="sub" id="bulkMarginStatus">Adds ₹5 once to each eligible non-engagement service. Does not publish services.</p><div id="adminServiceRows"></div>
+<div style="border-top:1px solid var(--line);margin-top:18px;padding-top:16px">
+<div class="sectionhead"><h3 style="font-size:15px;margin:0">Private Provider Inventory</h3><span class="pill" id="privateInventoryCount">Loading…</span></div>
+<p class="sub">All imported provider drafts appear here for private admin management. They remain separate from customer-orderable Services and are never published from this list.</p>
+<div class="btnrow" style="margin-bottom:12px"><input id="privateInventorySearch" placeholder="Search provider ID, service or category" style="flex:1;min-width:180px;background:#0b1423;border:1px solid #2b3a52;color:var(--text);padding:10px;border-radius:9px"><select id="privateInventoryStatus" style="background:#0b1423;border:1px solid #2b3a52;color:var(--text);padding:10px;border-radius:9px"><option value="all">All statuses</option><option value="pending">Pending</option><option value="approved">Reviewed</option><option value="rejected">Rejected</option></select><button class="btn secondary" id="refreshPrivateInventory" type="button">Refresh inventory</button></div>
+<div class="tablewrap"><table class="orders"><thead><tr><th>Provider ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Review status</th></tr></thead><tbody id="privateInventoryRows"><tr><td colspan="6" class="empty">Loading private inventory…</td></tr></tbody></table></div>
+<div class="btnrow" style="justify-content:space-between;align-items:center;margin-top:12px"><span class="sub" id="privateInventoryPageLabel">Page 1</span><div class="btnrow"><button class="btn secondary" id="privateInventoryPrev" type="button">Previous</button><button class="btn secondary" id="privateInventoryNext" type="button">Next</button></div></div>
+</div></div>
 </section>
 </main></div>
 <div id="authOverlay" style="display:none;position:fixed;inset:0;background:#050914dd;z-index:20;place-items:center;padding:18px">
