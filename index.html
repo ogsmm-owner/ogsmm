@@ -65,12 +65,18 @@
       <select id="draftStatus" style="background:#0b1423;border:1px solid #2b3a52;color:var(--text);padding:10px;border-radius:9px"><option value="pending">Pending</option><option value="approved">Reviewed / approved</option><option value="rejected">Rejected</option><option value="all">All statuses</option></select>
       <button class="btn secondary" id="refreshDrafts" type="button">Refresh drafts</button>
     </div>
-    <div class="notice" style="margin:0 0 10px">Bulk review updates review status only. It never publishes or activates services. First inspect the services across all pages, then confirm below.</div>
+    <div class="notice" style="margin:0 0 10px">Bulk review only changes review status. For adding, select reviewed, compliant content/marketing services below. Anything added remains INACTIVE until you separately publish it.</div>
+    <div class="btnrow" style="align-items:center;margin-bottom:12px">
+      <button class="btn secondary" id="selectAllEligibleDrafts" type="button">Select all matching eligible reviewed services</button>
+      <button class="btn secondary" id="clearSelectedDrafts" type="button">Clear selection</button>
+      <button class="btn" id="bulkAddSelectedDrafts" type="button" disabled>Add selected to Services (inactive) · 0</button>
+    </div>
+    <div class="notice" id="bulkAddDraftNotice" aria-live="polite">Only eligible genuine content and marketing services can be added in bulk. Artificial engagement services are excluded.</div>
     <div class="btnrow" style="align-items:center;margin-bottom:12px">
       <label style="display:flex;gap:8px;align-items:center;color:#aab8cd;font-size:12px"><input id="confirmBulkDraftReview" type="checkbox"> I have personally checked all pending services matching this search</label>
       <button class="btn" id="bulkMarkDraftsReviewed" type="button" disabled>Mark all matching pending as reviewed</button>
     </div>
-    <div class="tablewrap"><table class="orders"><thead><tr><th>Provider ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Status / action</th></tr></thead><tbody id="draftRows"><tr><td colspan="6" class="empty">Loading private drafts…</td></tr></tbody></table></div>
+    <div class="tablewrap"><table class="orders"><thead><tr><th>Select</th><th>Provider ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Status / action</th></tr></thead><tbody id="draftRows"><tr><td colspan="7" class="empty">Loading private drafts…</td></tr></tbody></table></div>
     <div class="btnrow" style="justify-content:space-between;align-items:center;margin-top:12px"><span class="sub" id="draftPageLabel">Page 1</span><div class="btnrow"><button class="btn secondary" id="draftPrev" type="button">Previous</button><button class="btn secondary" id="draftNext" type="button">Next</button></div></div>
     <div class="notice" id="draftReviewNotice" aria-live="polite">Review status does not make any service available to customers.</div>
   </div>
@@ -324,6 +330,9 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
   });
 
   const draftRows = document.getElementById("draftRows");
+  const selectedDraftIds = new Set();
+  const bulkAddDraftButton = document.getElementById("bulkAddSelectedDrafts");
+  const updateBulkAddLabel = () => { bulkAddDraftButton.textContent = "Add selected to Services (inactive) · " + selectedDraftIds.size; bulkAddDraftButton.disabled = selectedDraftIds.size===0; };
   let draftPage = 0;
   const draftPageSize = 50;
   async function loadDrafts() {
@@ -343,17 +352,19 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       document.getElementById("draftCounts").textContent = totals.pending+" pending · "+totals.approved+" reviewed · "+totals.rejected+" rejected";
       draftRows.innerHTML = (data||[]).map(s => {
         const statusText = s.review_status==="approved" ? "Reviewed" : s.review_status==="rejected" ? "Rejected" : "Pending";
-        const eligibleForCustomerPanel = s.review_status==="approved" && s.rate!=null && Number.isFinite(Number(s.rate));
+        const eligibleForCustomerPanel = s.review_status==="approved" && isPermittedService(s.name) && s.rate!=null && Number.isFinite(Number(s.rate));
+        const checked = selectedDraftIds.has(s.id) ? " checked" : "";
+        const selector = eligibleForCustomerPanel ? '<input type="checkbox" data-draft-select="'+esc(s.id)+'"'+checked+' aria-label="Select '+esc(s.name)+'">' : "—";
         const actions = s.review_status==="pending"
           ? '<button class="btn secondary" data-draft-action="approved" data-draft-id="'+esc(s.id)+'" type="button">Mark reviewed</button> <button class="btn secondary" data-draft-action="rejected" data-draft-id="'+esc(s.id)+'" type="button">Reject</button>'
           : '<button class="btn secondary" data-draft-action="pending" data-draft-id="'+esc(s.id)+'" type="button">Reopen for re-check</button>' + (eligibleForCustomerPanel ? ' <button class="btn" data-draft-add="'+esc(s.id)+'" type="button">Add to services (inactive)</button>' : '');
-        return '<tr><td>'+esc(s.provider_service_id)+'</td><td>'+esc(s.name)+'</td><td>'+esc(s.category||"")+'</td><td>'+esc(s.rate==null?"—":String(s.rate))+'</td><td>'+esc(String(s.min_quantity??"—"))+'–'+esc(String(s.max_quantity??"—"))+'</td><td><span class="pill">'+statusText+'</span><br>'+actions+'</td></tr>';
+        return '<tr><td>'+selector+'</td><td>'+esc(s.provider_service_id)+'</td><td>'+esc(s.name)+'</td><td>'+esc(s.category||"")+'</td><td>'+esc(s.rate==null?"—":String(s.rate))+'</td><td>'+esc(String(s.min_quantity??"—"))+'–'+esc(String(s.max_quantity??"—"))+'</td><td><span class="pill">'+statusText+'</span><br>'+actions+'</td></tr>';
       }).join("") || '<tr><td colspan="6" class="empty">No drafts match this filter.</td></tr>';
       document.getElementById("draftPageLabel").textContent = "Page "+(draftPage+1)+" · "+(data||[]).length+" rows";
       document.getElementById("draftPrev").disabled = draftPage===0;
       document.getElementById("draftNext").disabled = (data||[]).length<draftPageSize;
     } catch(error) {
-      draftRows.innerHTML = '<tr><td colspan="6" class="empty">'+esc(error.message||"Could not load drafts.")+'</td></tr>';
+      draftRows.innerHTML = '<tr><td colspan="7" class="empty">'+esc(error.message||"Could not load drafts.")+'</td></tr>';
     }
   }
   const bulkReviewConfirm = document.getElementById("confirmBulkDraftReview");
@@ -394,7 +405,58 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       bulkReviewButton.disabled = !bulkReviewConfirm.checked || document.getElementById("draftStatus").value !== "pending";
     }
   });
-  document.getElementById("refreshDrafts").addEventListener("click",()=>{draftPage=0;loadDrafts()});
+  document.getElementById("selectAllEligibleDrafts").addEventListener("click", async () => {
+    const notice=document.getElementById("bulkAddDraftNotice");
+    try {
+      await requireAdmin();
+      const term=document.getElementById("draftSearch").value.trim();
+      let page=0, added=0;
+      while(true){
+        let q=db.from("provider_service_drafts").select("id,name,rate,review_status").eq("review_status","approved").order("provider_service_id").range(page*1000,page*1000+999);
+        if(term)q=q.or("provider_service_id.ilike.%"+term+"%,name.ilike.%"+term+"%,category.ilike.%"+term+"%");
+        const {data,error}=await q;
+        if(error)throw error;
+        for(const d of data||[])if(isPermittedService(d.name)&&d.rate!=null&&Number.isFinite(Number(d.rate))){selectedDraftIds.add(d.id);added++;}
+        if(!data||data.length<1000)break;
+        page++;
+      }
+      updateBulkAddLabel();
+      notice.textContent=added+" eligible reviewed service(s) selected. Check the list and click Add selected when ready.";
+    } catch(error){notice.textContent="Could not select services: "+(error.message||"Unknown error");}
+  });
+  document.getElementById("clearSelectedDrafts").addEventListener("click",()=>{selectedDraftIds.clear();draftRows.querySelectorAll("input[data-draft-select]").forEach(x=>x.checked=false);updateBulkAddLabel();document.getElementById("bulkAddDraftNotice").textContent="Selection cleared.";});
+  draftRows.addEventListener("change",event=>{const box=event.target.closest("input[data-draft-select]");if(!box)return;if(box.checked)selectedDraftIds.add(box.dataset.draftSelect);else selectedDraftIds.delete(box.dataset.draftSelect);updateBulkAddLabel();});
+  bulkAddDraftButton.addEventListener("click",async()=>{
+    const notice=document.getElementById("bulkAddDraftNotice");
+    try{
+      await requireAdmin();
+      const ids=Array.from(selectedDraftIds);
+      if(!ids.length)throw new Error("Select reviewed eligible services first.");
+      if(!confirm("Add "+ids.length+" selected eligible content/marketing service(s) to Services as INACTIVE? Artificial engagement is excluded. Nothing will be published to customers."))return;
+      bulkAddDraftButton.disabled=true;bulkAddDraftButton.textContent="Adding…";
+      let added=0,skipped=0;
+      for(let i=0;i<ids.length;i+=100){
+        const batchIds=ids.slice(i,i+100);
+        const {data:drafts,error}=await db.from("provider_service_drafts").select("id,name,category,rate,min_quantity,max_quantity,review_status").in("id",batchIds);
+        if(error)throw error;
+        for(const d of drafts||[]){
+          if(d.review_status!=="approved"||!isPermittedService(d.name)||d.rate==null||!Number.isFinite(Number(d.rate))){skipped++;continue;}
+          const platform=String(d.category||"Other").slice(0,100);
+          const {data:existing,error:checkError}=await db.from("services").select("id").eq("platform",platform).eq("name",String(d.name)).limit(1);
+          if(checkError)throw checkError;
+          if(existing?.length){skipped++;continue;}
+          const {error:insertError}=await db.from("services").insert({platform,name:String(d.name),rate_per_1000:Number(d.rate),min_quantity:Number(d.min_quantity)||1,max_quantity:Number(d.max_quantity)||100000,active:false});
+          if(insertError)throw insertError;
+          added++;selectedDraftIds.delete(d.id);
+        }
+      }
+      updateBulkAddLabel();
+      notice.textContent="Added "+added+" eligible service(s) as INACTIVE; skipped "+skipped+" ineligible or duplicate item(s). Nothing was published.";
+      await loadAdmin();await loadDrafts();
+    }catch(error){notice.textContent="Bulk add stopped: "+(error.message||"Unknown error");}
+    finally{updateBulkAddLabel();}
+  });
+  document.getElementById("refreshDrafts").addEventListener("click",()=>{draftPage=0;loadDrafts();});
   document.getElementById("draftSearch").addEventListener("input",()=>{draftPage=0;loadDrafts()});
   document.getElementById("draftStatus").addEventListener("change",()=>{draftPage=0;bulkReviewButton.disabled = !bulkReviewConfirm.checked || document.getElementById("draftStatus").value !== "pending";loadDrafts()});
   document.getElementById("draftPrev").addEventListener("click",()=>{if(draftPage>0){draftPage--;loadDrafts()}});
@@ -409,7 +471,7 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
         const {data:draft,error:draftError}=await db.from("provider_service_drafts").select("provider_service_id,name,category,rate,min_quantity,max_quantity,review_status").eq("id",draftId).single();
         if(draftError)throw draftError;
         if(draft.review_status!=="approved")throw new Error("Reopen/review this service first.");
-        if(!draft.name || !String(draft.name).trim())throw new Error("This draft has no service name.");
+        if(!isPermittedService(draft.name))throw new Error("Only eligible genuine content and marketing services can be added.");
         if(draft.rate==null || !Number.isFinite(Number(draft.rate)))throw new Error("This draft has no valid rate. Add it manually after verifying the pricing unit.");
         if(!confirm("Add this reviewed, eligible service to the Services table as INACTIVE? It will not be visible to customers until you publish it separately."))return;
         const platform=String(draft.category||"Other").slice(0,100);
