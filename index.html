@@ -293,10 +293,10 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       if (term) q = q.or("provider_service_id.ilike.%"+term+"%,name.ilike.%"+term+"%,category.ilike.%"+term+"%");
       const {data,error} = await q;
       if (error) throw error;
-      const {data: counts,error:countError} = await db.from("provider_service_drafts").select("review_status");
+      const countResults = await Promise.all(["pending","approved","rejected"].map(value => db.from("provider_service_drafts").select("id",{count:"exact",head:true}).eq("review_status",value)));
+      const countError = countResults.find(x=>x.error)?.error;
       if (countError) throw countError;
-      const totals = {pending:0,approved:0,rejected:0};
-      (counts||[]).forEach(x=>{if(totals[x.review_status]!==undefined)totals[x.review_status]++});
+      const totals = {pending:countResults[0].count||0,approved:countResults[1].count||0,rejected:countResults[2].count||0};
       document.getElementById("draftCounts").textContent = totals.pending+" pending · "+totals.approved+" reviewed · "+totals.rejected+" rejected";
       draftRows.innerHTML = (data||[]).map(s => {
         const statusText = s.review_status==="approved" ? "Reviewed" : s.review_status==="rejected" ? "Rejected" : "Pending";
