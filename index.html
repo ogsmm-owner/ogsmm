@@ -236,6 +236,7 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       document.getElementById("adminOrderRows").innerHTML = ordersResult.data.map(o =>
         '<tr><td>'+new Date(o.created_at).toLocaleDateString()+'</td><td>'+esc(o.profiles?.email||'Customer')+'</td><td>'+esc(o.services?.name||'Service')+'</td><td>'+o.quantity+'</td><td>₹'+Number(o.charge).toFixed(2)+'</td><td>'+esc(o.status)+'</td></tr>'
       ).join("") || '<tr><td colspan="6" class="empty">No customer orders yet.</td></tr>';
+      await loadPrivateInventory();
     } catch (error) { toast(error.message || "Could not load admin data."); }
   }
   const bulkMarginButton = document.getElementById("applyBulkMargin");
@@ -335,6 +336,33 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
   const updateBulkAddLabel = () => { bulkAddDraftButton.textContent = "Add selected to Services (inactive) · " + selectedDraftIds.size; bulkAddDraftButton.disabled = selectedDraftIds.size===0; };
   let draftPage = 0;
   const draftPageSize = 50;
+  let privateInventoryPage=0;
+  const privateInventoryPageSize=50;
+  async function loadPrivateInventory() {
+    const rows=document.getElementById("privateInventoryRows");
+    if(!rows)return;
+    try {
+      await requireAdmin();
+      const term=document.getElementById("privateInventorySearch").value.trim();
+      const status=document.getElementById("privateInventoryStatus").value;
+      let q=db.from("provider_service_drafts").select("id,provider_service_id,name,category,rate,min_quantity,max_quantity,review_status",{count:"exact"}).order("provider_service_id").range(privateInventoryPage*privateInventoryPageSize,privateInventoryPage*privateInventoryPageSize+privateInventoryPageSize-1);
+      if(status!=="all")q=q.eq("review_status",status);
+      if(term)q=q.or("provider_service_id.ilike.%"+term+"%,name.ilike.%"+term+"%,category.ilike.%"+term+"%");
+      const {data,error,count}=await q;
+      if(error)throw error;
+      const labels={pending:"Pending",approved:"Reviewed",rejected:"Rejected"};
+      rows.innerHTML=(data||[]).map(d=>"<tr><td>"+esc(d.provider_service_id)+"</td><td>"+esc(d.name)+"</td><td>"+esc(d.category||"")+"</td><td>"+esc(d.rate==null?"—":String(d.rate))+"</td><td>"+esc(String(d.min_quantity??"—"))+"–"+esc(String(d.max_quantity??"—"))+"</td><td><span class=\"pill\">"+(labels[d.review_status]||esc(d.review_status))+"</span></td></tr>").join("")||"<tr><td colspan=\"6\" class=\"empty\">No private inventory records match this filter.</td></tr>";
+      document.getElementById("privateInventoryCount").textContent=(count||0)+" matching records";
+      document.getElementById("privateInventoryPageLabel").textContent="Page "+(privateInventoryPage+1)+" · "+(data||[]).length+" rows";
+      document.getElementById("privateInventoryPrev").disabled=privateInventoryPage===0;
+      document.getElementById("privateInventoryNext").disabled=(privateInventoryPage+1)*privateInventoryPageSize>=(count||0);
+    } catch(error) { rows.innerHTML="<tr><td colspan=\"6\" class=\"empty\">"+esc(error.message||"Could not load private inventory.")+"</td></tr>"; }
+  }
+  document.getElementById("privateInventorySearch").addEventListener("input",()=>{privateInventoryPage=0;loadPrivateInventory();});
+  document.getElementById("privateInventoryStatus").addEventListener("change",()=>{privateInventoryPage=0;loadPrivateInventory();});
+  document.getElementById("refreshPrivateInventory").addEventListener("click",loadPrivateInventory);
+  document.getElementById("privateInventoryPrev").addEventListener("click",()=>{if(privateInventoryPage>0){privateInventoryPage--;loadPrivateInventory();}});
+  document.getElementById("privateInventoryNext").addEventListener("click",()=>{privateInventoryPage++;loadPrivateInventory();});
   async function loadDrafts() {
     try {
       await requireAdmin();
