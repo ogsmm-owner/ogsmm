@@ -63,7 +63,7 @@
     <div class="btnrow" style="margin-bottom:12px">
       <input id="draftSearch" placeholder="Search ID, name or category" style="flex:1;min-width:180px;background:#0b1423;border:1px solid #2b3a52;color:var(--text);padding:10px;border-radius:9px">
       <select id="draftStatus" style="background:#0b1423;border:1px solid #2b3a52;color:var(--text);padding:10px;border-radius:9px"><option value="pending">Pending</option><option value="approved">Reviewed / approved</option><option value="rejected">Rejected</option><option value="all">All statuses</option></select>
-      <button class="btn secondary" id="refreshDrafts" type="button">Refresh drafts</button>
+      <button class="btn secondary" id="refreshDrafts" type="button">Refresh drafts</button><button class="btn secondary" id="reviewCurrent50" type="button">Verify current 50 as reviewed</button>
     </div>
     <div class="notice" style="margin:0 0 10px">Bulk review only changes review status. For adding, select reviewed, compliant content/marketing services below. Anything added remains INACTIVE until you separately publish it.</div>
     <div class="btnrow" style="align-items:center;margin-bottom:12px">
@@ -367,6 +367,30 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       draftRows.innerHTML = '<tr><td colspan="7" class="empty">'+esc(error.message||"Could not load drafts.")+'</td></tr>';
     }
   }
+  document.getElementById("reviewCurrent50").addEventListener("click", async () => {
+    const output=document.getElementById("draftReviewNotice");
+    try {
+      await requireAdmin();
+      const term=document.getElementById("draftSearch").value.trim();
+      const status=document.getElementById("draftStatus").value;
+      if(status!=="pending") throw new Error("Status filter ko Pending par set karo.");
+      let q=db.from("provider_service_drafts").select("id").eq("review_status","pending").order("provider_service_id").range(draftPage*draftPageSize,draftPage*draftPageSize+draftPageSize-1);
+      if(term) q=q.or("provider_service_id.ilike.%"+term+"%,name.ilike.%"+term+"%,category.ilike.%"+term+"%");
+      const {data,error}=await q;
+      if(error) throw error;
+      const ids=(data||[]).map(x=>x.id);
+      if(!ids.length){output.textContent="Is page par koi pending service nahi hai.";return;}
+      if(!confirm("Current page ke "+ids.length+" pending services ko REVIEWED mark karna hai? Pehle is page ke har service ko khud verify karo. Isse koi service customer ke liye publish/active nahi hogi.")) return;
+      const {data:{session}}=await db.auth.getSession();
+      const {error:updateError}=await db.from("provider_service_drafts").update({
+        review_status:"approved",reviewed_at:new Date().toISOString(),reviewed_by:session.user.id,
+        review_notes:"Current page batch marked reviewed by admin after personal verification; not published or activated."
+      }).in("id",ids).eq("review_status","pending");
+      if(updateError) throw updateError;
+      output.textContent=ids.length+" current-page services marked reviewed. Ab reviewed filter select karke eligible services ko Services mein add kar sakte ho (inactive).";
+      await loadDrafts();
+    } catch(error){output.textContent="Batch review failed: "+(error.message||"Unknown error");}
+  });
   const bulkReviewConfirm = document.getElementById("confirmBulkDraftReview");
   const bulkReviewButton = document.getElementById("bulkMarkDraftsReviewed");
   bulkReviewConfirm.addEventListener("change", () => {
