@@ -312,9 +312,10 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       document.getElementById("draftCounts").textContent = totals.pending+" pending · "+totals.approved+" reviewed · "+totals.rejected+" rejected";
       draftRows.innerHTML = (data||[]).map(s => {
         const statusText = s.review_status==="approved" ? "Reviewed" : s.review_status==="rejected" ? "Rejected" : "Pending";
+        const eligibleForCustomerPanel = s.review_status==="approved" && isPermittedService(s.name) && s.rate!=null && Number.isFinite(Number(s.rate));
         const actions = s.review_status==="pending"
           ? '<button class="btn secondary" data-draft-action="approved" data-draft-id="'+esc(s.id)+'" type="button">Mark reviewed</button> <button class="btn secondary" data-draft-action="rejected" data-draft-id="'+esc(s.id)+'" type="button">Reject</button>'
-          : '<button class="btn secondary" data-draft-action="pending" data-draft-id="'+esc(s.id)+'" type="button">Reopen</button>';
+          : '<button class="btn secondary" data-draft-action="pending" data-draft-id="'+esc(s.id)+'" type="button">Reopen for re-check</button>' + (eligibleForCustomerPanel ? ' <button class="btn" data-draft-add="'+esc(s.id)+'" type="button">Add to services (inactive)</button>' : '');
         return '<tr><td>'+esc(s.provider_service_id)+'</td><td>'+esc(s.name)+'</td><td>'+esc(s.category||"")+'</td><td>'+esc(s.rate==null?"—":String(s.rate))+'</td><td>'+esc(String(s.min_quantity??"—"))+'–'+esc(String(s.max_quantity??"—"))+'</td><td><span class="pill">'+statusText+'</span><br>'+actions+'</td></tr>';
       }).join("") || '<tr><td colspan="6" class="empty">No drafts match this filter.</td></tr>';
       document.getElementById("draftPageLabel").textContent = "Page "+(draftPage+1)+" · "+(data||[]).length+" rows";
@@ -368,6 +369,37 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
   document.getElementById("draftPrev").addEventListener("click",()=>{if(draftPage>0){draftPage--;loadDrafts()}});
   document.getElementById("draftNext").addEventListener("click",()=>{draftPage++;loadDrafts()});
   draftRows.addEventListener("click",async event=>{
+    const addButton=event.target.closest("button[data-draft-add]");
+    if(addButton){
+      try {
+        await requireAdmin();
+        const draftId=addButton.dataset.draftAdd;
+        addButton.disabled=true;
+        const {data:draft,error:draftError}=await db.from("provider_service_drafts").select("provider_service_id,name,category,rate,min_quantity,max_quantity,review_status").eq("id",draftId).single();
+        if(draftError)throw draftError;
+        if(draft.review_status!=="approved")throw new Error("Reopen/review this service first.");
+        if(!isPermittedService(draft.name))throw new Error("This service is not eligible for customer-panel listing. Only approved non-engagement services can be added.");
+        if(draft.rate==null || !Number.isFinite(Number(draft.rate)))throw new Error("This draft has no valid rate. Add it manually after verifying the pricing unit.");
+        if(!confirm("Add this reviewed, eligible service to the Services table as INACTIVE? It will not be visible to customers until you publish it separately."))return;
+        const platform=String(draft.category||"Other").slice(0,100);
+        const {error:insertError}=await db.from("services").insert({
+          platform,
+          name:String(draft.name),
+          rate_per_1000:Number(draft.rate),
+          min_quantity:Number(draft.min_quantity)||1,
+          max_quantity:Number(draft.max_quantity)||100000,
+          active:false
+        });
+        if(insertError)throw insertError;
+        document.getElementById("draftReviewNotice").textContent="Added to Services in database as INACTIVE. Verify the pricing unit and fulfilment, then publish it from Services in database if appropriate.";
+        await loadAdmin();
+        await loadDrafts();
+      } catch(error) {
+        document.getElementById("draftReviewNotice").textContent="Could not add service: "+(error.message||"Unknown error");
+        addButton.disabled=false;
+      }
+      return;
+    }
     const button=event.target.closest("button[data-draft-action]");
     if(!button)return;
     try {
