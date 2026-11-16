@@ -52,8 +52,8 @@
   <div class="card" style="margin-top:16px">
     <div class="sectionhead"><h2>Provider catalogue</h2><span class="pill">ADMIN REVIEW ONLY</span></div>
     <p class="sub">Loads the provider's current service list for review. Nothing here is published to customers or enabled for ordering.</p>
-    <button class="btn" id="loadProviderCatalog" type="button">Load provider services</button>
-    <div class="notice" id="providerCatalogResult" aria-live="polite">Not loaded yet.</div>
+    <div class="btnrow"><button class="btn" id="loadProviderCatalog" type="button">Load provider services</button><button class="btn secondary" id="importProviderDrafts" type="button">Import all to admin drafts</button></div>
+    <div class="notice" id="providerCatalogResult" aria-live="polite">Not loaded yet. Imports remain private to admins and are never enabled for customer orders.</div>
     <div class="tablewrap" style="margin-top:12px"><table class="orders"><thead><tr><th>ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Type</th></tr></thead><tbody id="providerCatalogRows"><tr><td colspan="6" class="empty">Admin-only review list.</td></tr></tbody></table></div>
   </div>
   <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Services in database</h2><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div><div id="adminServiceRows"></div></div>
@@ -225,6 +225,44 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
     } finally {
       catalogButton.disabled = false;
       catalogButton.textContent = "Load provider services";
+    }
+  });
+  const importDraftButton = document.getElementById("importProviderDrafts");
+  if (importDraftButton) importDraftButton.addEventListener("click", async () => {
+    const status = document.getElementById("providerCatalogResult");
+    importDraftButton.disabled = true;
+    importDraftButton.textContent = "Importing…";
+    status.textContent = "Fetching the provider catalogue and saving private admin drafts…";
+    try {
+      await requireAdmin();
+      const { data, error } = await db.functions.invoke("smm-provider", { body: { action: "services" } });
+      if (error) throw error;
+      if (!Array.isArray(data)) throw new Error(data?.error || "Unexpected provider response.");
+      let imported = 0;
+      for (let i = 0; i < data.length; i += 250) {
+        const batch = data.slice(i, i + 250).map(s => ({
+          provider_service_id: String(s.service ?? ""),
+          name: String(s.name ?? "Unnamed provider service"),
+          category: String(s.category ?? ""),
+          service_type: String(s.type ?? ""),
+          rate: s.rate == null ? null : Number(s.rate),
+          min_quantity: s.min == null ? null : Number(s.min),
+          max_quantity: s.max == null ? null : Number(s.max),
+          raw_data: s,
+          review_status: "pending"
+        })).filter(s => s.provider_service_id);
+        if (!batch.length) continue;
+        const { error: saveError } = await db.from("provider_service_drafts").upsert(batch, { onConflict: "provider_service_id" });
+        if (saveError) throw saveError;
+        imported += batch.length;
+        status.textContent = "Saved " + imported + " of " + data.length + " services as private admin drafts…";
+      }
+      status.textContent = "Imported " + imported + " provider services into the private admin draft catalogue. All remain pending review and unavailable to customers.";
+    } catch (error) {
+      status.textContent = "Draft import failed: " + (error.message || "Unknown error");
+    } finally {
+      importDraftButton.disabled = false;
+      importDraftButton.textContent = "Import all to admin drafts";
     }
   });
   const balanceButton = document.getElementById("checkProviderBalance");
