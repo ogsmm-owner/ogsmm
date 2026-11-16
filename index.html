@@ -65,6 +65,11 @@
       <select id="draftStatus" style="background:#0b1423;border:1px solid #2b3a52;color:var(--text);padding:10px;border-radius:9px"><option value="pending">Pending</option><option value="approved">Reviewed / approved</option><option value="rejected">Rejected</option><option value="all">All statuses</option></select>
       <button class="btn secondary" id="refreshDrafts" type="button">Refresh drafts</button>
     </div>
+    <div class="notice" style="margin:0 0 10px">Bulk review updates review status only. It never publishes or activates services. First inspect the services across all pages, then confirm below.</div>
+    <div class="btnrow" style="align-items:center;margin-bottom:12px">
+      <label style="display:flex;gap:8px;align-items:center;color:#aab8cd;font-size:12px"><input id="confirmBulkDraftReview" type="checkbox"> I have personally checked all pending services matching this search</label>
+      <button class="btn" id="bulkMarkDraftsReviewed" type="button" disabled>Mark all matching pending as reviewed</button>
+    </div>
     <div class="tablewrap"><table class="orders"><thead><tr><th>Provider ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Status / action</th></tr></thead><tbody id="draftRows"><tr><td colspan="6" class="empty">Loading private drafts…</td></tr></tbody></table></div>
     <div class="btnrow" style="justify-content:space-between;align-items:center;margin-top:12px"><span class="sub" id="draftPageLabel">Page 1</span><div class="btnrow"><button class="btn secondary" id="draftPrev" type="button">Previous</button><button class="btn secondary" id="draftNext" type="button">Next</button></div></div>
     <div class="notice" id="draftReviewNotice" aria-live="polite">Review status does not make any service available to customers.</div>
@@ -319,9 +324,47 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       draftRows.innerHTML = '<tr><td colspan="6" class="empty">'+esc(error.message||"Could not load drafts.")+'</td></tr>';
     }
   }
+  const bulkReviewConfirm = document.getElementById("confirmBulkDraftReview");
+  const bulkReviewButton = document.getElementById("bulkMarkDraftsReviewed");
+  bulkReviewConfirm.addEventListener("change", () => {
+    bulkReviewButton.disabled = !bulkReviewConfirm.checked || document.getElementById("draftStatus").value !== "pending";
+  });
+  bulkReviewButton.addEventListener("click", async () => {
+    try {
+      await requireAdmin();
+      if (!bulkReviewConfirm.checked || document.getElementById("draftStatus").value !== "pending") throw new Error("Select Pending and confirm that you personally checked the matching services first.");
+      const term = document.getElementById("draftSearch").value.trim();
+      const matchCount = await db.from("provider_service_drafts").select("id", {count:"exact",head:true}).eq("review_status","pending").or(term ? "provider_service_id.ilike.%"+term+"%,name.ilike.%"+term+"%,category.ilike.%"+term+"%" : "provider_service_id.not.is.null");
+      if (matchCount.error) throw matchCount.error;
+      const total = matchCount.count || 0;
+      if (!total) { document.getElementById("draftReviewNotice").textContent = "No matching pending services to review."; return; }
+      if (!confirm("You are marking "+total+" matching pending services as REVIEWED. This does not publish or activate them. Continue only if you have personally checked every matching service.")) return;
+      bulkReviewButton.disabled = true;
+      bulkReviewButton.textContent = "Updating…";
+      const {data:{session}} = await db.auth.getSession();
+      let updateQuery = db.from("provider_service_drafts").update({
+        review_status:"approved",
+        reviewed_at:new Date().toISOString(),
+        reviewed_by:session.user.id,
+        review_notes:"Bulk marked reviewed by admin after personal verification; not published or activated."
+      }).eq("review_status","pending");
+      if (term) updateQuery = updateQuery.or("provider_service_id.ilike.%"+term+"%,name.ilike.%"+term+"%,category.ilike.%"+term+"%");
+      else updateQuery = updateQuery.not("provider_service_id","is",null);
+      const {error} = await updateQuery;
+      if (error) throw error;
+      bulkReviewConfirm.checked = false;
+      document.getElementById("draftReviewNotice").textContent = total+" matching services marked reviewed. No service was published or activated.";
+      await loadDrafts();
+    } catch(error) {
+      document.getElementById("draftReviewNotice").textContent = "Bulk review failed: "+(error.message||"Unknown error");
+    } finally {
+      bulkReviewButton.textContent = "Mark all matching pending as reviewed";
+      bulkReviewButton.disabled = !bulkReviewConfirm.checked || document.getElementById("draftStatus").value !== "pending";
+    }
+  });
   document.getElementById("refreshDrafts").addEventListener("click",()=>{draftPage=0;loadDrafts()});
   document.getElementById("draftSearch").addEventListener("input",()=>{draftPage=0;loadDrafts()});
-  document.getElementById("draftStatus").addEventListener("change",()=>{draftPage=0;loadDrafts()});
+  document.getElementById("draftStatus").addEventListener("change",()=>{draftPage=0;bulkReviewButton.disabled = !bulkReviewConfirm.checked || document.getElementById("draftStatus").value !== "pending";loadDrafts()});
   document.getElementById("draftPrev").addEventListener("click",()=>{if(draftPage>0){draftPage--;loadDrafts()}});
   document.getElementById("draftNext").addEventListener("click",()=>{draftPage++;loadDrafts()});
   draftRows.addEventListener("click",async event=>{
