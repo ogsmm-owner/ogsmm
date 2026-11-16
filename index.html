@@ -26,7 +26,7 @@
 <section id="admin" class="page hidden">
   <div class="layout">
     <div class="card">
-      <div class="sectionhead"><h2>Add a service</h2><span class="pill">ADMIN ONLY</span></div><div class="notice" style="margin:0 0 12px">For interface testing only. Demo services are visibly labelled and do not deliver followers, likes, views, or story views.</div><button class="btn secondary" id="addDemoCatalogue" type="button" style="margin-bottom:12px">Disable demo services</button>
+      <div class="sectionhead"><h2>Add a service</h2><span class="pill">ADMIN ONLY</span></div><button class="btn secondary" id="addDemoCatalogue" type="button" style="display:none">Disable demo services</button>
       <form id="adminServiceForm">
         <div class="field"><label for="adminPlatform">Platform</label><input id="adminPlatform" required placeholder="Instagram"></div>
         <div class="field"><label for="adminServiceName">Service name</label><input id="adminServiceName" required placeholder="Instagram post likes"></div>
@@ -39,17 +39,17 @@
       <div class="notice">Keep services inactive until you have verified a legitimate, platform-permitted fulfilment method. No provider API or payments are connected yet.</div>
     </div>
     <div class="card">
-      <div class="sectionhead"><h2>All customer orders</h2><button class="btn secondary" id="refreshAdminOrders" type="button">Refresh</button></div>
+      <div class="sectionhead"><h2>Orders</h2><button class="btn secondary" id="refreshAdminOrders" type="button">Refresh</button></div>
       <div class="tablewrap"><table class="orders"><thead><tr><th>Created</th><th>Customer</th><th>Service</th><th>Qty</th><th>Charge</th><th>Status</th></tr></thead><tbody id="adminOrderRows"><tr><td colspan="6" class="empty">Sign in as admin to load orders.</td></tr></tbody></table></div>
     </div>
   </div>
-  <div class="card" style="margin-top:16px">
+  <div class="card" style="margin-top:16px;display:none">
     <div class="sectionhead"><h2>Provider balance</h2><span class="pill">ADMIN ONLY</span></div>
     <p class="sub">Checks the provider account balance securely through the OGSMM admin function.</p>
     <div class="btnrow"><button class="btn" id="checkProviderBalance" type="button">Check live balance</button></div>
     <div class="notice" id="providerBalanceResult" aria-live="polite">Not checked yet.</div>
   </div>
-  <div class="card" style="margin-top:16px">
+  <div class="card" style="margin-top:16px;display:none">
     <div class="sectionhead"><h2>Provider catalogue</h2><span class="pill">ADMIN REVIEW ONLY</span></div>
     <p class="sub">Loads the provider's current service list for review. Nothing here is published to customers or enabled for ordering.</p>
     <div class="btnrow"><button class="btn" id="loadProviderCatalog" type="button">Load provider services</button><button class="btn secondary" id="importProviderDrafts" type="button">Import all to admin drafts</button></div>
@@ -57,7 +57,7 @@
     <div class="tablewrap" style="margin-top:12px"><table class="orders"><thead><tr><th>ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Type</th></tr></thead><tbody id="providerCatalogRows"><tr><td colspan="6" class="empty">Admin-only review list.</td></tr></tbody></table></div>
   </div>
 
-  <div class="card" style="margin-top:16px">
+  <div class="card" style="margin-top:16px;display:none">
     <div class="sectionhead"><h2>Private draft review</h2><span class="pill" id="draftCounts">Loading…</span></div>
     <p class="sub">Review provider entries one by one. “Approve” means reviewed for possible compliant use only; it does not publish or activate a service. Do not approve artificial followers, likes, views, or other metric manipulation.</p>
     <div class="btnrow" style="margin-bottom:12px">
@@ -81,7 +81,7 @@
     <div class="notice" id="draftReviewNotice" aria-live="polite">Review status does not make any service available to customers.</div>
   </div>
 
-  <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Services in database</h2><div class="btnrow"><button class="btn" id="applyBulkMargin" type="button">Apply +₹5 margin (eligible services)</button><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div></div><p class="sub" id="bulkMarginStatus">Adds ₹5 once to each eligible non-engagement service. Does not publish services.</p><div id="adminServiceRows"></div></div>
+  <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Manage Services</h2><div class="btnrow"><button class="btn" id="applyBulkMargin" type="button">Apply +₹5 to eligible services</button><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div></div><p class="sub" id="bulkMarginStatus">Adds ₹5 once to each eligible non-engagement service. Does not publish services.</p><div id="adminServiceRows"></div></div>
 </section>
 </main></div>
 <div id="authOverlay" style="display:none;position:fixed;inset:0;background:#050914dd;z-index:20;place-items:center;padding:18px">
