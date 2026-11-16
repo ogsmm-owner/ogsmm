@@ -49,7 +49,7 @@
     <div class="btnrow"><button class="btn" id="checkProviderBalance" type="button">Check live balance</button></div>
     <div class="notice" id="providerBalanceResult" aria-live="polite">Not checked yet.</div>
   </div>
-  <div class="card" style="margin-top:16px;display:none">
+  <div class="card" style="margin-top:16px">
     <div class="sectionhead"><h2>Provider catalogue</h2><span class="pill">ADMIN REVIEW ONLY</span></div>
     <p class="sub">Loads the provider's current service list for review. Nothing here is published to customers or enabled for ordering.</p>
     <div class="btnrow"><button class="btn" id="loadProviderCatalog" type="button">Load provider services</button><button class="btn secondary" id="importProviderDrafts" type="button">Import all to admin drafts</button></div>
@@ -57,7 +57,7 @@
     <div class="tablewrap" style="margin-top:12px"><table class="orders"><thead><tr><th>ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Type</th></tr></thead><tbody id="providerCatalogRows"><tr><td colspan="6" class="empty">Admin-only review list.</td></tr></tbody></table></div>
   </div>
 
-  <div class="card" style="margin-top:16px;display:none">
+  <div class="card" style="margin-top:16px">
     <div class="sectionhead"><h2>Private draft review</h2><span class="pill" id="draftCounts">Loading…</span></div>
     <p class="sub">Review provider entries one by one. “Approve” means reviewed for possible compliant use only; it does not publish or activate a service. Do not approve artificial followers, likes, views, or other metric manipulation.</p>
     <div class="btnrow" style="margin-bottom:12px">
