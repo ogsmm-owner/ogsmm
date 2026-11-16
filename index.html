@@ -56,6 +56,20 @@
     <div class="notice" id="providerCatalogResult" aria-live="polite">Not loaded yet. Imports remain private to admins and are never enabled for customer orders.</div>
     <div class="tablewrap" style="margin-top:12px"><table class="orders"><thead><tr><th>ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Type</th></tr></thead><tbody id="providerCatalogRows"><tr><td colspan="6" class="empty">Admin-only review list.</td></tr></tbody></table></div>
   </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="sectionhead"><h2>Private draft review</h2><span class="pill" id="draftCounts">Loading…</span></div>
+    <p class="sub">Review provider entries one by one. “Approve” means reviewed for possible compliant use only; it does not publish or activate a service. Do not approve artificial followers, likes, views, or other metric manipulation.</p>
+    <div class="btnrow" style="margin-bottom:12px">
+      <input id="draftSearch" placeholder="Search ID, name or category" style="flex:1;min-width:180px;background:#0b1423;border:1px solid #2b3a52;color:var(--text);padding:10px;border-radius:9px">
+      <select id="draftStatus" style="background:#0b1423;border:1px solid #2b3a52;color:var(--text);padding:10px;border-radius:9px"><option value="pending">Pending</option><option value="approved">Reviewed / approved</option><option value="rejected">Rejected</option><option value="all">All statuses</option></select>
+      <button class="btn secondary" id="refreshDrafts" type="button">Refresh drafts</button>
+    </div>
+    <div class="tablewrap"><table class="orders"><thead><tr><th>Provider ID</th><th>Service</th><th>Category</th><th>Rate</th><th>Min–Max</th><th>Status / action</th></tr></thead><tbody id="draftRows"><tr><td colspan="6" class="empty">Loading private drafts…</td></tr></tbody></table></div>
+    <div class="btnrow" style="justify-content:space-between;align-items:center;margin-top:12px"><span class="sub" id="draftPageLabel">Page 1</span><div class="btnrow"><button class="btn secondary" id="draftPrev" type="button">Previous</button><button class="btn secondary" id="draftNext" type="button">Next</button></div></div>
+    <div class="notice" id="draftReviewNotice" aria-live="polite">Review status does not make any service available to customers.</div>
+  </div>
+
   <div class="card" style="margin-top:16px"><div class="sectionhead"><h2>Services in database</h2><button class="btn secondary" id="refreshAdminServices" type="button">Refresh</button></div><div id="adminServiceRows"></div></div>
 </section>
 </main></div>
@@ -75,7 +89,7 @@
 <script>
 const rates={"Instagram followers":85,"Instagram likes":18,"Instagram reel views":12,"YouTube views":95,"YouTube subscribers":240,"Telegram members":110};
 const money=n=>"₹"+Number(n).toFixed(2);let orders=JSON.parse(localStorage.getItem('ogsmm_demo_orders')||'[]');
-function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(p).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));document.getElementById('pageTitle').textContent=({dashboard:'Dashboard',neworder:'New order',services:'Services',orders:'Order history',admin:'Admin console'})[p];if(p==='admin'&&window.ogsmmLoadAdmin)window.ogsmmLoadAdmin();}
+function showPage(p){document.querySelectorAll('.page').forEach(x=>x.classList.add('hidden'));document.getElementById(p).classList.remove('hidden');document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===p));document.getElementById('pageTitle').textContent=({dashboard:'Dashboard',neworder:'New order',services:'Services',orders:'Order history',admin:'Admin console'})[p];if(p==='admin'&&window.ogsmmLoadAdmin)window.ogsmmLoadAdmin();if(p==='admin'&&window.ogsmmLoadDrafts)window.ogsmmLoadDrafts();}
 document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>showPage(b.dataset.page)));
 function estimate(){let sel=document.getElementById('service'),opt=sel.options[sel.selectedIndex],rate=Number(opt?.dataset?.rate)||0,q=Number(document.getElementById('quantity').value)||0;document.getElementById('estimate').textContent=money(rate*q/1000)}
 document.getElementById('service').addEventListener('change',estimate);document.getElementById('quantity').addEventListener('input',estimate);
@@ -265,6 +279,72 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       importDraftButton.textContent = "Import all to admin drafts";
     }
   });
+
+  const draftRows = document.getElementById("draftRows");
+  let draftPage = 0;
+  const draftPageSize = 50;
+  async function loadDrafts() {
+    try {
+      await requireAdmin();
+      const status = document.getElementById("draftStatus").value;
+      const term = document.getElementById("draftSearch").value.trim();
+      let q = db.from("provider_service_drafts").select("id,provider_service_id,name,category,service_type,rate,min_quantity,max_quantity,review_status").order("provider_service_id").range(draftPage*draftPageSize, draftPage*draftPageSize+draftPageSize-1);
+      if (status !== "all") q = q.eq("review_status", status);
+      if (term) q = q.or("provider_service_id.ilike.%"+term+"%,name.ilike.%"+term+"%,category.ilike.%"+term+"%");
+      const {data,error} = await q;
+      if (error) throw error;
+      const {data: counts,error:countError} = await db.from("provider_service_drafts").select("review_status");
+      if (countError) throw countError;
+      const totals = {pending:0,approved:0,rejected:0};
+      (counts||[]).forEach(x=>{if(totals[x.review_status]!==undefined)totals[x.review_status]++});
+      document.getElementById("draftCounts").textContent = totals.pending+" pending · "+totals.approved+" reviewed · "+totals.rejected+" rejected";
+      draftRows.innerHTML = (data||[]).map(s => {
+        const statusText = s.review_status==="approved" ? "Reviewed" : s.review_status==="rejected" ? "Rejected" : "Pending";
+        const actions = s.review_status==="pending"
+          ? '<button class="btn secondary" data-draft-action="approved" data-draft-id="'+esc(s.id)+'" type="button">Mark reviewed</button> <button class="btn secondary" data-draft-action="rejected" data-draft-id="'+esc(s.id)+'" type="button">Reject</button>'
+          : '<button class="btn secondary" data-draft-action="pending" data-draft-id="'+esc(s.id)+'" type="button">Reopen</button>';
+        return '<tr><td>'+esc(s.provider_service_id)+'</td><td>'+esc(s.name)+'</td><td>'+esc(s.category||"")+'</td><td>'+esc(s.rate==null?"—":String(s.rate))+'</td><td>'+esc(String(s.min_quantity??"—"))+'–'+esc(String(s.max_quantity??"—"))+'</td><td><span class="pill">'+statusText+'</span><br>'+actions+'</td></tr>';
+      }).join("") || '<tr><td colspan="6" class="empty">No drafts match this filter.</td></tr>';
+      document.getElementById("draftPageLabel").textContent = "Page "+(draftPage+1)+" · "+(data||[]).length+" rows";
+      document.getElementById("draftPrev").disabled = draftPage===0;
+      document.getElementById("draftNext").disabled = (data||[]).length<draftPageSize;
+    } catch(error) {
+      draftRows.innerHTML = '<tr><td colspan="6" class="empty">'+esc(error.message||"Could not load drafts.")+'</td></tr>';
+    }
+  }
+  document.getElementById("refreshDrafts").addEventListener("click",()=>{draftPage=0;loadDrafts()});
+  document.getElementById("draftSearch").addEventListener("input",()=>{draftPage=0;loadDrafts()});
+  document.getElementById("draftStatus").addEventListener("change",()=>{draftPage=0;loadDrafts()});
+  document.getElementById("draftPrev").addEventListener("click",()=>{if(draftPage>0){draftPage--;loadDrafts()}});
+  document.getElementById("draftNext").addEventListener("click",()=>{draftPage++;loadDrafts()});
+  draftRows.addEventListener("click",async event=>{
+    const button=event.target.closest("button[data-draft-action]");
+    if(!button)return;
+    try {
+      await requireAdmin();
+      const nextStatus=button.dataset.draftAction;
+      const id=button.dataset.draftId;
+      let note="";
+      if(nextStatus==="approved"){
+        if(!confirm("Mark as reviewed only? This will NOT publish or activate the service. Confirm it is a genuine, platform-permitted marketing service—not artificial engagement."))return;
+        note="Admin marked reviewed; not customer-live.";
+      } else if(nextStatus==="rejected") {
+        note=prompt("Optional reason for rejection:")||"Rejected during admin review.";
+      } else {
+        note="Review reopened by admin.";
+      }
+      button.disabled=true;
+      const {data:{session}}=await db.auth.getSession();
+      const {error}=await db.from("provider_service_drafts").update({review_status:nextStatus,reviewed_at:nextStatus==="pending"?null:new Date().toISOString(),reviewed_by:nextStatus==="pending"?null:session.user.id,review_notes:nextStatus==="pending"?null:note}).eq("id",id);
+      if(error)throw error;
+      document.getElementById("draftReviewNotice").textContent="Draft status updated. No customer-facing service was activated.";
+      await loadDrafts();
+    } catch(error) {
+      document.getElementById("draftReviewNotice").textContent="Could not update draft: "+(error.message||"Unknown error");
+      button.disabled=false;
+    }
+  });
+
   const balanceButton = document.getElementById("checkProviderBalance");
   if (balanceButton) balanceButton.addEventListener("click", async () => {
     const output = document.getElementById("providerBalanceResult");
@@ -288,6 +368,7 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
     }
   });
   window.ogsmmLoadAdmin = loadAdmin;
+  window.ogsmmLoadDrafts = loadDrafts;
   document.getElementById("adminServiceForm").addEventListener("submit", async event => {
     event.preventDefault();
     try {
