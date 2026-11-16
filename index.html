@@ -343,7 +343,7 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
       document.getElementById("draftCounts").textContent = totals.pending+" pending · "+totals.approved+" reviewed · "+totals.rejected+" rejected";
       draftRows.innerHTML = (data||[]).map(s => {
         const statusText = s.review_status==="approved" ? "Reviewed" : s.review_status==="rejected" ? "Rejected" : "Pending";
-        const eligibleForCustomerPanel = s.review_status==="approved" && isPermittedService(s.name) && s.rate!=null && Number.isFinite(Number(s.rate));
+        const eligibleForCustomerPanel = s.review_status==="approved" && s.rate!=null && Number.isFinite(Number(s.rate));
         const actions = s.review_status==="pending"
           ? '<button class="btn secondary" data-draft-action="approved" data-draft-id="'+esc(s.id)+'" type="button">Mark reviewed</button> <button class="btn secondary" data-draft-action="rejected" data-draft-id="'+esc(s.id)+'" type="button">Reject</button>'
           : '<button class="btn secondary" data-draft-action="pending" data-draft-id="'+esc(s.id)+'" type="button">Reopen for re-check</button>' + (eligibleForCustomerPanel ? ' <button class="btn" data-draft-add="'+esc(s.id)+'" type="button">Add to services (inactive)</button>' : '');
@@ -409,10 +409,13 @@ document.getElementById('serviceList').innerHTML=Object.entries(rates).map(([s,r
         const {data:draft,error:draftError}=await db.from("provider_service_drafts").select("provider_service_id,name,category,rate,min_quantity,max_quantity,review_status").eq("id",draftId).single();
         if(draftError)throw draftError;
         if(draft.review_status!=="approved")throw new Error("Reopen/review this service first.");
-        if(!isPermittedService(draft.name))throw new Error("This service is not eligible for customer-panel listing. Only approved non-engagement services can be added.");
+        if(!draft.name || !String(draft.name).trim())throw new Error("This draft has no service name.");
         if(draft.rate==null || !Number.isFinite(Number(draft.rate)))throw new Error("This draft has no valid rate. Add it manually after verifying the pricing unit.");
         if(!confirm("Add this reviewed, eligible service to the Services table as INACTIVE? It will not be visible to customers until you publish it separately."))return;
         const platform=String(draft.category||"Other").slice(0,100);
+        const {data:existing,error:existingError}=await db.from("services").select("id").eq("platform",platform).eq("name",String(draft.name)).limit(1);
+        if(existingError)throw existingError;
+        if(existing?.length)throw new Error("This service already exists in Services in database.");
         const {error:insertError}=await db.from("services").insert({
           platform,
           name:String(draft.name),
